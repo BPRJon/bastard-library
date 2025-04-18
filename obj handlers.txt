@@ -1,0 +1,365 @@
+--@author jon b
+--[[
+DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS ///
+
+
+//// SERVER ////
+
+
+objHandler.createPropFromFile( pos, ang, path, frozen )
+
+loads a sf custom prop from an obj file in your sf_filedata folder
+
+
+pos (vector)
+    vector position the prop should spawn from
+ ang (angle)
+    angle the prop should face when spawned
+path (string)
+    string path to the obj file local to your sf_filedata folder
+frozen (bool)
+    whether or not the prop is frozen upon spawn
+
+
+
+objHandler.cachePropVerticies( path )
+
+saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
+deserialize and enjoy
+
+
+path (string)
+    path to the obj file you want to cache relative to sf_filedata/
+
+
+
+objHandler.URLLoadObjAndMaterial( objurl, materialurl )
+takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
+
+objurl (string)
+    string url for loading the OBJ to be used as the visual mesh
+materialurl (string)
+    string url for loading the custom texture that will be applied to the mesh
+    
+==RETURNS==
+
+return_tbl
+    table where each key is the object number of the mesh and the value is the hologram entity
+
+
+
+//// CLIENT ////
+
+
+
+
+]]--
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+objHandler = {}
+
+if SERVER then
+
+    net.receive( "objHandler_CreateHolosFromKeys", function()
+        
+        local tbl = net.readTable()
+        local send = {}
+        
+        for i,v in pairs( tbl ) do
+            
+            local holo = hologram.create( chip():getPos(), Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector(1) )
+            
+            send[i] = holo
+            
+        end
+        
+        net.start( "objHandler_SendBackHolos" )
+            
+        
+        end)
+
+function objHandler.createPropFromFile( pos, ang, path, frozen )
+--loads a sf custom prop from an obj file in your sf_filedata folder
+--
+--pos (vector)
+--    vector position the prop should spawn from
+-- ang (angle)
+--    angle the prop should face when spawned
+--path (string)
+--    string path to the obj file local to your sf_filedata folder
+--frozen (bool)
+--    whether or not the prop is frozen upon spawn
+
+   
+    local propVerts = {}
+    local objData = {}
+    
+    hook.add( "ClientInitialized", "objHandler_Init", function(ply)
+        
+        if ply == owner() then
+        
+            net.start( "objHandler_OBJPath" ) --send path to client to be read
+                net.writeString( path )
+                net.send( owner() )
+                
+            end
+        
+        end)
+    
+    net.receive( "objHandler_OBJFile", function() --save the file string we got from client
+        
+        hook.remove( "ClientInitialized", "objHandler_Init" )
+        
+        net.readStream( function(stream)
+            
+            objData = string.explode( "\n", bit.decompress( stream ) ) -- save the file data
+            
+            local co = coroutine.wrap( function() --coroutine for 
+        
+                local object = 0
+                
+                for line,data in pairs( objData ) do --go through each line
+                    
+                    if string.startsWith( data, "o " )then --if it starts with o its the start of a new object
+                        
+                        object = object + 1
+                        propVerts[object] = {}
+                        
+                    elseif string.startsWith( data, "v " ) then --if it starts with v its a vertex, so we need to save it
+                        
+                        local explode = string.explode( " ", data )
+                        local vec = Vector( tonumber( explode[2] ), tonumber(explode[3] ), tonumber( explode[4] ) )
+                        
+                        table.insert( propVerts[object], vec )
+                        
+                    end
+                    
+                    coroutine.yield()
+                    
+                end
+                
+                coroutine.yield( true )
+                
+                end)
+            
+            hook.add( "tick", "objHandler_CreateFromFile_coroutine", function()
+            
+                while chip():getQuotaAverage() <= chip():getQuotaMax() * 0.7 do --run the coroutine as long as the chip isnt gonna explode, if its done then stop everything
+                    
+                    if co() then
+                        
+                        hook.remove( "tick", "objHandler_CreateFromFile_coroutine" )
+                        
+                        prop.createCustom( pos, ang, propVerts, frozen )
+                        
+                        break
+                        end 
+                    
+                end
+                
+                end)
+            
+            end)
+        
+        end)
+    
+end
+
+
+
+function objHandler.cachePropVerticies( path )
+--saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
+--
+--path (string)
+--    path to the obj file you want to cache relative to sf_filedata/
+    
+    local propVerts = {}
+    local objData = {}
+    
+    hook.add( "ClientInitialized", "objHandler_Init", function()
+        
+        if ply == owner() then
+        
+            net.start( "objHandler_OBJPath" ) --send path to client to be read
+                net.writeString( path )
+                net.send( owner() )
+                
+            end
+        
+        end)
+        
+    net.receive( "objHandler_OBJFile", function()
+        
+        hook.remove( "ClientInitialized", "objHandler_Init" )
+        
+        net.readStream( function(stream)
+            
+            objData = string.explode( "\n", bit.decompress( stream ) ) -- save the file data
+            
+            local co = coroutine.wrap( function() --coroutine for 
+        
+                local object = 0
+                
+                for line,data in pairs( objData ) do --go through each line
+                    
+                    if string.startsWith( data, "o " )then --if it starts with o its the start of a new object
+                        
+                        object = object + 1
+                        propVerts[object] = {}
+                        
+                    elseif string.startsWith( data, "v " ) then --if it starts with v its a vertex, so we need to save it
+                        
+                        local explode = string.explode( " ", data )
+                        local vec = Vector( tonumber( explode[2] ), tonumber(explode[3] ), tonumber( explode[4] ) )
+                        
+                        table.insert( propVerts[object], vec )
+                        
+                    end
+                    
+                    coroutine.yield()
+                    
+                end
+                
+                coroutine.yield( true )
+                
+                end)
+            
+            hook.add( "tick", "objHandler_CreateFromFile_coroutine", function()
+            
+                while chip():getQuotaAverage() <= chip():getQuotaMax() * 0.7 do --run the coroutine as long as the chip isnt gonna explode, if its done then stop everything
+                    
+                    if co() then
+                        
+                        hook.remove( "tick", "objHandler_CreateFromFile_coroutine" )
+                        
+                        net.start( "objHandler_SaveVertsToFile" )
+                        net.writeString( path )
+                            net.writeStream( bit.compress( von.serialize( propVerts ) ) )
+                            net.send( owner() )
+                        
+                        break
+                        end 
+                    
+                end
+                
+                end)
+            
+            end)
+        
+        end)
+    
+end
+
+
+
+function objHandler.URLLoadObjAndMaterial( objurl, materialurl )
+    
+    local return_tbl = {}
+    
+    http.get( objurl, function(body)
+        local explode = string.explode( "\n", body )
+        local index = 0
+        
+        while cpuAverage() < cpuMax() * 0.03 and index < #explode do
+            index = index + 1
+            
+            if string.startsWith( explode[index], "o " ) then
+                
+                table.insert( return_tbl, hologram.create( chip():getPos(), Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector(1) ) )
+                
+            end
+            
+        end
+        
+        hook.add( "ClientInitialized", "objHandler_Init",function()
+        
+            net.start("objHandler_LoadObjMeshes")
+                net.writeUInt( #return_tbl, 12 )
+                for i=1, #return_tbl do
+                    net.writeEntity( return_tbl[i] )
+                end
+                net.writeString( objurl )
+                net.writeString( materialurl )
+                net.send()
+            
+            end)
+        
+        end)
+        
+    return return_tbl
+    
+end
+
+
+
+elseif CLIENT then
+    
+    net.receive( "objHandler_OBJPath", function() --load the file and send the string back to server
+        
+        local path = net.readString()
+        
+        net.start( "objHandler_OBJFile" )
+            net.writeStream( bit.compress( file.read(path) ) )
+            net.send( owner() )
+        
+        end )
+        
+    net.receive( "objHandler_SaveVertsToFile", function()
+        
+        local path = net.readString()
+        
+        net.readStream( function(stream)
+            
+            local propVerts = bit.decompress( stream )
+            local explosion = string.explode( "/", path )
+            explosion = string.replace( explosion[table.count( explosion )], "obj", "txt" )
+            
+            if file.exists( "obj2prop/" ) then
+                
+                file.createDir( "obj2prop/" )
+                file.write( "obj2prop/"..explosion, propVerts )
+                
+            else
+                
+                file.write( "obj2prop/"..explosion, propVerts )
+                
+            end
+            
+            end)
+        
+        end)
+        
+    net.receive( "objHandler_LoadObjMeshes", function()
+        
+        local table_count = net.readUInt(12) --get the amount of holos we need to save
+        local holos = {}
+        
+        for i=1, table_count do
+            local holo = net.readEntity() --save holos based on how many we got sent
+            holos[i] = holo
+        end
+        
+        local objurl = net.readString()
+        local materialurl = net.readString()
+        
+        local _material = material.create("VertexLitGeneric") --create, load, and set up material
+        _material:setTextureURL( "$basetexture", materialurl )
+        
+        http.get( objurl, function(body) --load obj data and start code in cb func
+            
+            local mesh_tbl = mesh.createFromObj( body, false, true ) --make meshes from obj data
+            local keys = table.getKeys(mesh_tbl) --turn strings to numbers (essentially)
+            
+            for i,v in pairs( mesh_tbl ) do --go over each mesh
+                
+                local key = table.keyFromValue( keys, i )
+                
+                holos[key]:toHologram():setMesh( v ) --apply mesh to hologram
+                holos[key]:toHologram():setMeshMaterial( _material ) --apply material to hologram
+                
+            end
+            
+            end)
+        
+        end)
+end
