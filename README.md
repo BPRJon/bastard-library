@@ -32,6 +32,7 @@ saves the vertecies needed for creating a custom prop in your sf_filedata/obj2pr
 
 ## objHandler.URLLoadObjAndMaterial( objurl, materialurl )
 takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
+NOTE: uses a 025x025x025 default cube model as the base holo, meaning the textures HAVE to be 1024^2 and the render bounds will need to be set manually.
 
 - objurl (string)
     - string url for loading the OBJ to be used as the visual mesh
