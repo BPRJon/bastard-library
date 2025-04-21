@@ -33,13 +33,15 @@ path (string)
 
 
 
-objHandler.URLLoadObjAndMaterial( objurl, materialurl )
+objHandler.URLLoadObjAndMaterial( objurl, materialurl, _entity or nil )
 takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
 
 objurl (string)
     string url for loading the OBJ to be used as the visual mesh
 materialurl (string)
     string url for loading the custom texture that will be applied to the mesh
+_entity or nil (entity)
+    option entity to spawn the holos on instead of the chip
     
 ==RETURNS==
 
@@ -59,24 +61,6 @@ return_tbl
 objHandler = {}
 
 if SERVER then
-
-    net.receive( "objHandler_CreateHolosFromKeys", function()
-        
-        local tbl = net.readTable()
-        local send = {}
-        
-        for i,v in pairs( tbl ) do
-            
-            local holo = hologram.create( chip():getPos(), Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector(1) )
-            
-            send[i] = holo
-            
-        end
-        
-        net.start( "objHandler_SendBackHolos" )
-            
-        
-        end)
 
 function objHandler.createPropFromFile( pos, ang, path, frozen )
 --loads a sf custom prop from an obj file in your sf_filedata folder
@@ -202,7 +186,7 @@ function objHandler.cachePropVerticies( path )
                 
                 for line,data in pairs( objData ) do --go through each line
                     
-                    if string.startsWith( data, "o " )then --if it starts with o its the start of a new object
+                    if string.startsWith( data, "o " ) then --if it starts with o its the start of a new object
                         
                         object = object + 1
                         propVerts[object] = {}
@@ -252,20 +236,28 @@ end
 
 
 
-function objHandler.URLLoadObjAndMaterial( objurl, materialurl )
+function objHandler.URLLoadObjAndMaterial( objurl, materialurl, ent )
     
     local return_tbl = {}
+    local spawnpos = chip():getPos()
+    if ent then
+        spawnpos = ent:getPos()
+    end
+    
     
     http.get( objurl, function(body)
         local explode = string.explode( "\n", body )
-        local index = 0
         
-        while cpuAverage() < cpuMax() * 0.03 and index < #explode do
-            index = index + 1
+        for _,v in pairs( explode ) do
             
-            if string.startsWith( explode[index], "o " ) then
+            if string.startsWith( v, "o " ) then
                 
-                table.insert( return_tbl, hologram.create( chip():getPos(), Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector(1) ) )
+                local holo = hologram.create( spawnpos, Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector( 1 ) )
+                table.insert( return_tbl, holo )
+                
+                if ent then
+                    holo:setParent( ent )
+                end
                 
             end
             
@@ -287,6 +279,42 @@ function objHandler.URLLoadObjAndMaterial( objurl, materialurl )
         end)
         
     return return_tbl
+    
+end
+
+
+
+function objHandler.propFromURL( pos, ang, url, freeze )
+    
+    local propVerts = {}
+    local object = 0
+    local obj
+    
+    http.get( url, function( body )
+        
+        obj = string.explode( "\n", body )
+            
+            for i,v in pairs( obj ) do
+                
+                if string.startsWith( v, "o " ) then
+                    
+                    object = object + 1
+                    propVerts[object] = {}
+                    
+                elseif string.startsWith( v, "v " ) then
+                    
+                    local explode = string.explode( " ", v )
+                    local vec = Vector( tonumber(explode[2]), tonumber(explode[3]), tonumber(explode[4]) )
+                    
+                    table.insert( propVerts[object], vec )
+                    
+                end
+                
+            end
+            
+            return prop.createCustom( pos, ang, propVerts, freeze )
+            
+            end)
     
 end
 
@@ -331,7 +359,7 @@ elseif CLIENT then
         
     net.receive( "objHandler_LoadObjMeshes", function()
         
-        local table_count = net.readUInt(12) --get the amount of holos we need to save
+        local table_count = net.readUInt( 12 ) --get the amount of holos we need to save
         local holos = {}
         
         for i=1, table_count do
@@ -342,13 +370,13 @@ elseif CLIENT then
         local objurl = net.readString()
         local materialurl = net.readString()
         
-        local _material = material.create("VertexLitGeneric") --create, load, and set up material
+        local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
         _material:setTextureURL( "$basetexture", materialurl )
         
-        http.get( objurl, function(body) --load obj data and start code in cb func
+        http.get( objurl, function( body ) --load obj data and start code in cb func
             
-            local mesh_tbl = mesh.createFromObj( body, false, true ) --make meshes from obj data
-            local keys = table.getKeys(mesh_tbl) --turn strings to numbers (essentially)
+            local mesh_tbl = mesh.createFromObj( body ) --make meshes from obj data
+            local keys = table.getKeys( mesh_tbl ) --turn strings to numbers (essentially)
             
             for i,v in pairs( mesh_tbl ) do --go over each mesh
                 
@@ -359,7 +387,7 @@ elseif CLIENT then
                 
             end
             
-            end)
+            end, function(reason) print(reason.."\n\nfail") end)
         
         end)
 end
