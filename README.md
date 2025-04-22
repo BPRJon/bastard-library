@@ -7,6 +7,7 @@ A collection of StarFall Libraries ive made to make my (and possibly your) life 
 
 
 ## objHandler.createPropFromFile( pos, ang, path, frozen )
+
 loads a sf custom prop from an obj file in your sf_filedata folder
 
 
@@ -22,7 +23,9 @@ loads a sf custom prop from an obj file in your sf_filedata folder
 
 
 ## objHandler.cachePropVerticies( path )
-saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use. deserialize and enjoy
+
+saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
+deserialize and enjoy
 
 
 - path (string)
@@ -30,16 +33,30 @@ saves the vertecies needed for creating a custom prop in your sf_filedata/obj2pr
 
 
 
-## objHandler.URLLoadObjAndMaterial( objurl, materialurl )
+## objHandler.URLLoadObjAndMaterial( objurl, materialurl, callback )
+
 takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
-NOTE: uses a 025x025x025 default cube model as the base holo, meaning the textures HAVE to be 1024^2 and the render bounds will need to be set manually.
 
 - objurl (string)
     - string url for loading the OBJ to be used as the visual mesh
 - materialurl (string)
     - string url for loading the custom texture that will be applied to the mesh
-    
-==RETURNS==
+- callback (function)
+    - has one argument, tbl, that will give back the table of holograms. to get the table as a var put function(tbl) var = tbl end
 
-- return_tbl
-    - table where each key is the object number of the mesh and the value is the hologram entity
+
+
+## objHandler.propFromURL( pos, ang, url, freeze, callback )
+
+load an obj from a url and automatically turn it into a custom prop
+
+- pos (vector)
+    - position you want the prop to spawn at
+- ang (angle)
+    - angle you want the prop to face upon spawn
+- url (string)
+    - url to the OBJ to want to load
+- freeze (bool)
+    - whether or not the prop is frozen upon spawn
+- callback (function)
+    has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
