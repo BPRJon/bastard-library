@@ -1,0 +1,65 @@
+--@name Evil Killer Cube
+--@author jon b
+--@server
+--@include bastardlibs/behavior tree.txt
+
+require( "bastardlibs/behavior tree.txt" )
+
+baseProp = prop.create( chip():getPos() + Vector(0,50,25), Angle(), "models/hunter/blocks/cube05x05x05.mdl", false )
+
+--Setting up behavior tree
+
+rootNode = behaviorTree.createRootNode( {HP = 100} )
+
+rootBranch = rootNode:addBranch( BRANCHTYPES.SELECTOR ) --root branches only need the type, they automatically succeed
+
+branchHealth = rootBranch:addBranch( BRANCHTYPES.SEQUENCE, 1, function( branch ) --set first node to a sequencer branch
+        if branch:getBlackBoard().HP < 76 then branch:setStatus( NODESTATUS.SUCCEEDED )
+        else branch:setStatus( NODESTATUS.FAILED )
+        end
+    end)
+    
+leafAttack = rootBranch:addLeaf( 2, function( leaf ) --set second node to a leaf
+        if owner():getPos():getDistance( baseProp:getPos() ) < 500 then leaf:setStatus( NODESTATUS.SUCCEEDED )
+        else leaf:setStatus( NODESTATUS.FAILED )
+        end
+    end,
+    function( leaf )
+        baseProp:addVelocity( ( owner():getPos() - baseProp:getPos() + Vector(0,0,2) )*5 )
+    end)
+    
+leafEscape = branchHealth:addLeaf( 1, function( leaf ) --adding leaves to the new branch
+        leaf:setStatus( NODESTATUS.SUCCEEDED ) --i just want it to win...
+    end,
+    function( leaf )
+        baseProp:addVelocity( ( baseProp:getPos() - owner():getPos() + Vector(0,0,2) )*5 )
+        leaf:setActionStatus( ACTIONSTATUS.COMPLETED )
+    end)
+    
+leafRecover = branchHealth:addLeaf( 2, function( leaf )
+        leaf:setStatus( NODESTATUS.SUCCEEDED )
+    end,
+    function( leaf )
+        local currentHP = leaf:getBlackBoard().HP
+        
+        leaf:setBlackBoard( "HP", currentHP + 25 )
+        leaf:setActionStatus( ACTIONSTATUS.COMPLETED )
+    end)
+    
+--minimal actual code for this example
+
+hook.add( "EntityTakeDamage", "you hurt the cube why", function( target, _, _, amount )
+    
+    if target == baseProp then
+        local curentHP = rootBranch:getBlackBoard().HP
+        
+        rootBranch:setBlackBoard( "HP", math.max( 0, curentHP - amount ) )
+    end
+    
+end)
+
+timer.create( "Slowtick", 3, 0, function()
+    
+    rootNode:tick()
+    
+end)
