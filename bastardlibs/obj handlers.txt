@@ -34,6 +34,7 @@ path (string)
 
 
 objHandler.URLLoadObjAndMaterial( objurl, materialurl, callback )
+
 takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
 
 objurl (string)
@@ -46,6 +47,7 @@ callback (function)
 
 
 objHandler.propFromURL( pos, ang, url, freeze, callback )
+
 load an obj from a url and automatically turn it into a custom prop
 
 pos (vector)
@@ -56,6 +58,27 @@ url (string)
     url to the OBJ to want to load
 freeze (bool)
     whether or not the prop is frozen upon spawn
+callback (function)
+    has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
+    
+    
+    
+function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
+
+loads a custom prop and sets it mesh and mesh material to custom ones
+
+pos (vector)
+    position you want the prop to spawn at
+ang (angle)
+    angle you want the prop to face upon spawn
+freeze (bool)
+    whether or not the prop is frozen upon spawn
+propurl (string)
+    string url to the custom prop obj
+meshurl (string)
+    string url to the mesh obj
+maturl (string)
+    string url to the material file
 callback (function)
     has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
 
@@ -322,6 +345,54 @@ end
 
 
 
+function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
+    
+    local propVerts = {}
+    local object = 0
+    local obj
+    
+    http.get( propurl, function( body )
+        
+        obj = string.explode( "\n", body )
+            
+            for i,v in pairs( obj ) do
+                
+                if string.startsWith( v, "o " ) then
+                    
+                    object = object + 1
+                    propVerts[object] = {}
+                    
+                elseif string.startsWith( v, "v " ) then
+                    
+                    local explode = string.explode( " ", v )
+                    local vec = Vector( tonumber(explode[2]), tonumber(explode[3]), tonumber(explode[4]) )
+                    
+                    table.insert( propVerts[object], vec )
+                    
+                end
+                
+            end
+            
+            _prop = prop.createCustom( pos, ang, propVerts, freeze )
+            
+            callback( _prop )
+            
+            hook.add( "ClientInitialized", "LoadMeshandMaterial", function( ply )
+                
+                net.start( "CustomPropMeshMaterial" )
+                    net.writeEntity( _prop )
+                    net.writeString( meshurl )
+                    net.writeString( maturl )
+                    net.send( ply )
+                
+                end)
+            
+            end)
+    
+end
+
+
+
 elseif CLIENT then
     
     net.receive( "objHandler_OBJPath", function() --load the file and send the string back to server
@@ -390,6 +461,30 @@ elseif CLIENT then
             end
             
             end, function(reason) print(reason.."\n\nfail") end)
+        
+        end)
+        
+    net.receive( "CustomPropMeshMaterial", function()
+        
+        local _prop = net.readEntity()
+        local meshurl = net.readString()
+        local maturl = net.readString()
+        
+        local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
+        _material:setTextureURL( "$basetexture", maturl )
+        
+        http.get( meshurl, function( body )
+            
+            local mesh_tbl = mesh.createFromObj( body )
+            
+            for _,v in pairs( mesh_tbl ) do
+                
+                _prop:setMesh( v )
+                _prop:setMeshMaterial( _material )
+                
+            end
+            
+            end)
         
         end)
 end

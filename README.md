@@ -61,6 +61,25 @@ load an obj from a url and automatically turn it into a custom prop
 - callback (function)
     has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
 
+## function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
+
+loads a custom prop and sets it mesh and mesh material to custom ones
+
+- pos (vector)
+    - position you want the prop to spawn at
+- ang (angle)
+    - angle you want the prop to face upon spawn
+- freeze (bool)
+    - whether or not the prop is frozen upon spawn
+- propurl (string)
+    - string url to the custom prop obj
+- meshurl (string)
+    - string url to the mesh obj
+- maturl (string)
+    - string url to the material file
+- callback (function)
+    - has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
+
 # Behavior Tree
 
 # Base Functions
