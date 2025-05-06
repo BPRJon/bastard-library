@@ -377,13 +377,13 @@ function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl,
             
             callback( _prop )
             
-            hook.add( "ClientInitialized", "LoadMeshandMaterial", function( ply )
+            hook.add( "ClientInitialized", "LoadMeshandMaterial", function( )
                 
                 net.start( "CustomPropMeshMaterial" )
                     net.writeEntity( _prop )
                     net.writeString( meshurl )
                     net.writeString( maturl )
-                    net.send( ply )
+                    net.send( )
                 
                 end)
             
@@ -463,28 +463,35 @@ elseif CLIENT then
             end, function(reason) print(reason.."\n\nfail") end)
         
         end)
-        
+    
+    local received = false
     net.receive( "CustomPropMeshMaterial", function()
         
-        local _prop = net.readEntity()
-        local meshurl = net.readString()
-        local maturl = net.readString()
+        if not received then
         
-        local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
-        _material:setTextureURL( "$basetexture", maturl )
-        
-        http.get( meshurl, function( body )
+            local _prop = net.readEntity()
+            local meshurl = net.readString()
+            local maturl = net.readString()
             
-            local mesh_tbl = mesh.createFromObj( body )
+            local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
+            _material:setTextureURL( "$basetexture", maturl )
             
-            for _,v in pairs( mesh_tbl ) do
+            http.get( meshurl, function( body )
                 
-                _prop:setMesh( v )
-                _prop:setMeshMaterial( _material )
+                local mesh_tbl = mesh.createFromObj( body )
                 
-            end
+                for _,v in pairs( mesh_tbl ) do
+                    
+                    _prop:setMesh( v )
+                    _prop:setMeshMaterial( _material )
+                    
+                end
+                
+                received = true
+                
+                end)
             
-            end)
+        end
         
         end)
 end
