@@ -2,496 +2,99 @@
 --[[
 DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS ///
 
-
-//// SERVER ////
-
-
-objHandler.createPropFromFile( pos, ang, path, frozen )
-
-loads a sf custom prop from an obj file in your sf_filedata folder
-
-
-pos (vector)
-    vector position the prop should spawn from
- ang (angle)
-    angle the prop should face when spawned
-path (string)
-    string path to the obj file local to your sf_filedata folder
-frozen (bool)
-    whether or not the prop is frozen upon spawn
+# OBJ Handler V2
 
 
 
-objHandler.cachePropVerticies( path )
+////// SHARED //////
 
-saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
-deserialize and enjoy
+## convertHolosToMeshes( holotbl, objlink, clientcallback, maxcpu or nil )
 
-
-path (string)
-    path to the obj file you want to cache relative to sf_filedata/
-
-
-
-objHandler.URLLoadObjAndMaterial( objurl, materialurl, callback )
-
-takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
-
-objurl (string)
-    string url for loading the OBJ to be used as the visual mesh
-materialurl (string)
-    string url for loading the custom texture that will be applied to the mesh
-callback (function)
-    has one argument, tbl, that will give back the table of holograms. to get the table as a var put function(tbl) var = tbl end
-
-
-
-objHandler.propFromURL( pos, ang, url, freeze, callback )
-
-load an obj from a url and automatically turn it into a custom prop
-
-pos (vector)
-    position you want the prop to spawn at
-ang (angle)
-    angle you want the prop to face upon spawn
-url (string)
-    url to the OBJ to want to load
-freeze (bool)
-    whether or not the prop is frozen upon spawn
-callback (function)
-    has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
+A shared function doesnt make much sense so let me quickly explain before telling you what each var is/does.
+You will have to run this function twice, once on the server and once on the client, and the vars for both are slightly different.
     
-    
-    
-function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
+It should look something like this:
 
-loads a custom prop and sets it mesh and mesh material to custom ones
+```
+if SERVER then
+    convertHolosToMeshes( holotbl, objlink )
+else
+    convertHolosToMeshes( nil, objlink, clientcallback, maxcpu or nil )
+end
+```
 
-pos (vector)
-    position you want the prop to spawn at
-ang (angle)
-    angle you want the prop to face upon spawn
-freeze (bool)
-    whether or not the prop is frozen upon spawn
-propurl (string)
-    string url to the custom prop obj
-meshurl (string)
-    string url to the mesh obj
-maturl (string)
-    string url to the material file
-callback (function)
-    has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
+### VARS
 
-
-
-//// CLIENT ////
-
-
-
+ - holotbl [SERVER] (table)
+     - A table of hologram entities you want to turn into meshes
+ - objlink [SHARED] (string)
+     - A link to the obj file you want to turn into a mesh, must be pre-triangulated
+ - clientcallback [CLIENT] (function)
+     - A function that will automatically be run. This function has 2 inputs: holograms (table) and obj (table).
+         - holograms is the holotbl sent to the client automatically by the function
+         - obj is a table of Mesh objects created from your OBJ file
+ - maxcpu [CLIENT] (number)
+     - a number 0-1 representing how much of the client CPU the function can take to generate the mesh (default 0.25)
 
 ]]--
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 objHandler = {}
 
+function convertHolosToMeshes( holotbl, objlink, clientcallback, maxcpu )
+    
 if SERVER then
-
-function objHandler.createPropFromFile( pos, ang, path, frozen )
---loads a sf custom prop from an obj file in your sf_filedata folder
---
---pos (vector)
---    vector position the prop should spawn from
--- ang (angle)
---    angle the prop should face when spawned
---path (string)
---    string path to the obj file local to your sf_filedata folder
---frozen (bool)
---    whether or not the prop is frozen upon spawn
-
-   
-    local propVerts = {}
-    local objData = {}
-    
-    hook.add( "ClientInitialized", "objHandler_Init", function(ply)
+    hook.add( "ClientInitialized", "LoadOBJ_"..objlink, function()
         
-        if ply == owner() then
-        
-            net.start( "objHandler_OBJPath" ) --send path to client to be read
-                net.writeString( path )
-                net.send( owner() )
-                
-            end
+        net.start( "NetHolos_"..objlink )
+            net.writeTable( holotbl )
+            net.send()
         
         end)
-    
-    net.receive( "objHandler_OBJFile", function() --save the file string we got from client
-        
-        hook.remove( "ClientInitialized", "objHandler_Init" )
-        
-        net.readStream( function(stream)
-            
-            objData = string.explode( "\n", bit.decompress( stream ) ) -- save the file data
-            
-            local co = coroutine.wrap( function() --coroutine for 
-        
-                local object = 0
-                
-                for line,data in pairs( objData ) do --go through each line
-                    
-                    if string.startsWith( data, "o " )then --if it starts with o its the start of a new object
-                        
-                        object = object + 1
-                        propVerts[object] = {}
-                        
-                    elseif string.startsWith( data, "v " ) then --if it starts with v its a vertex, so we need to save it
-                        
-                        local explode = string.explode( " ", data )
-                        local vec = Vector( tonumber( explode[2] ), tonumber(explode[3] ), tonumber( explode[4] ) )
-                        
-                        table.insert( propVerts[object], vec )
-                        
-                    end
-                    
-                    coroutine.yield()
-                    
-                end
-                
-                coroutine.yield( true )
-                
-                end)
-            
-            hook.add( "tick", "objHandler_CreateFromFile_coroutine", function()
-            
-                while chip():getQuotaAverage() <= chip():getQuotaMax() * 0.7 do --run the coroutine as long as the chip isnt gonna explode, if its done then stop everything
-                    
-                    if co() then
-                        
-                        hook.remove( "tick", "objHandler_CreateFromFile_coroutine" )
-                        
-                        prop.createCustom( pos, ang, propVerts, frozen )
-                        
-                        break
-                        end 
-                    
-                end
-                
-                end)
-            
-            end)
-        
-        end)
-    
-end
-
-
-
-function objHandler.cachePropVerticies( path )
---saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
---
---path (string)
---    path to the obj file you want to cache relative to sf_filedata/
-    
-    local propVerts = {}
-    local objData = {}
-    
-    hook.add( "ClientInitialized", "objHandler_Init", function()
-        
-        if ply == owner() then
-        
-            net.start( "objHandler_OBJPath" ) --send path to client to be read
-                net.writeString( path )
-                net.send( owner() )
-                
-            end
-        
-        end)
-        
-    net.receive( "objHandler_OBJFile", function()
-        
-        hook.remove( "ClientInitialized", "objHandler_Init" )
-        
-        net.readStream( function(stream)
-            
-            objData = string.explode( "\n", bit.decompress( stream ) ) -- save the file data
-            
-            local co = coroutine.wrap( function() --coroutine for 
-        
-                local object = 0
-                
-                for line,data in pairs( objData ) do --go through each line
-                    
-                    if string.startsWith( data, "o " ) then --if it starts with o its the start of a new object
-                        
-                        object = object + 1
-                        propVerts[object] = {}
-                        
-                    elseif string.startsWith( data, "v " ) then --if it starts with v its a vertex, so we need to save it
-                        
-                        local explode = string.explode( " ", data )
-                        local vec = Vector( tonumber( explode[2] ), tonumber(explode[3] ), tonumber( explode[4] ) )
-                        
-                        table.insert( propVerts[object], vec )
-                        
-                    end
-                    
-                    coroutine.yield()
-                    
-                end
-                
-                coroutine.yield( true )
-                
-                end)
-            
-            hook.add( "tick", "objHandler_CreateFromFile_coroutine", function()
-            
-                while chip():getQuotaAverage() <= chip():getQuotaMax() * 0.7 do --run the coroutine as long as the chip isnt gonna explode, if its done then stop everything
-                    
-                    if co() then
-                        
-                        hook.remove( "tick", "objHandler_CreateFromFile_coroutine" )
-                        
-                        net.start( "objHandler_SaveVertsToFile" )
-                        net.writeString( path )
-                            net.writeStream( bit.compress( von.serialize( propVerts ) ) )
-                            net.send( owner() )
-                        
-                        break
-                        end 
-                    
-                end
-                
-                end)
-            
-            end)
-        
-        end)
-    
-end
-
-
-
-function objHandler.URLLoadObjAndMaterial( objurl, materialurl, callback )
-    
-    local return_tbl = {}    
-    
-    http.get( objurl, function(body) --load obj url
-        local explode = string.explode( "\n", body )
-        
-        for _,v in pairs( explode ) do
-            
-            if string.startsWith( v, "o " ) then --make holograms to receive the meshes
-                
-                local holo = hologram.create( chip():getPos(), Angle(), "models/hunter/blocks/cube025x025x025.mdl", Vector( 1 ) )
-                table.insert( return_tbl, holo )
-                
-            end
-            
-        end
-        
-        hook.add( "ClientInitialized", "objHandler_Init",function() --send holos and both urls to client
-        
-            net.start("objHandler_LoadObjMeshes")
-                net.writeUInt( #return_tbl, 12 )
-                for i=1, #return_tbl do
-                    net.writeEntity( return_tbl[i] )
-                end
-                net.writeString( objurl )
-                net.writeString( materialurl )
-                net.send()
-            
-            end)
-            
-        callback( return_tbl )
-        
-        end)
-    
-end
-
-
-
-function objHandler.propFromURL( pos, ang, url, freeze, callback )
-    
-    local propVerts = {}
-    local object = 0
-    local obj
-    
-    http.get( url, function( body )
-        
-        obj = string.explode( "\n", body )
-            
-            for i,v in pairs( obj ) do
-                
-                if string.startsWith( v, "o " ) then
-                    
-                    object = object + 1
-                    propVerts[object] = {}
-                    
-                elseif string.startsWith( v, "v " ) then
-                    
-                    local explode = string.explode( " ", v )
-                    local vec = Vector( tonumber(explode[2]), tonumber(explode[3]), tonumber(explode[4]) )
-                    
-                    table.insert( propVerts[object], vec )
-                    
-                end
-                
-            end
-            
-            callback( prop.createCustom( pos, ang, propVerts, freeze ) )
-            
-            end)
-    
-end
-
-
-
-function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
-    
-    local propVerts = {}
-    local object = 0
-    local obj
-    
-    http.get( propurl, function( body )
-        
-        obj = string.explode( "\n", body )
-            
-            for i,v in pairs( obj ) do
-                
-                if string.startsWith( v, "o " ) then
-                    
-                    object = object + 1
-                    propVerts[object] = {}
-                    
-                elseif string.startsWith( v, "v " ) then
-                    
-                    local explode = string.explode( " ", v )
-                    local vec = Vector( tonumber(explode[2]), tonumber(explode[3]), tonumber(explode[4]) )
-                    
-                    table.insert( propVerts[object], vec )
-                    
-                end
-                
-            end
-            
-            _prop = prop.createCustom( pos, ang, propVerts, freeze )
-            
-            callback( _prop )
-            
-            hook.add( "ClientInitialized", "LoadMeshandMaterial", function( )
-                
-                net.start( "CustomPropMeshMaterial" )
-                    net.writeEntity( _prop )
-                    net.writeString( meshurl )
-                    net.writeString( maturl )
-                    net.send( )
-                
-                end)
-            
-            end)
-    
-end
-
-
-
 elseif CLIENT then
+    local receivedNet = false
+    local objmesh = {}
+    local co = function()end
+    local clcpu = 0.25
     
-    net.receive( "objHandler_OBJPath", function() --load the file and send the string back to server
+    if maxcpu then clcpu = maxcpu end
+    
+    net.receive( "NetHolos_"..objlink, function()
         
-        local path = net.readString()
+        receivedNet = true
         
-        net.start( "objHandler_OBJFile" )
-            net.writeStream( bit.compress( file.read(path) ) )
-            net.send( owner() )
+        local holograms = net.readTable()
         
-        end )
-        
-    net.receive( "objHandler_SaveVertsToFile", function()
-        
-        local path = net.readString()
-        
-        net.readStream( function(stream)
+        http.get( objlink, function(objstr)
             
-            local propVerts = bit.decompress( stream )
-            local explosion = string.explode( "/", path )
-            explosion = string.replace( explosion[table.count( explosion )], "obj", "txt" )
-            
-            if file.exists( "obj2prop/" ) then
+            co = coroutine.wrap(function()
+                    
+                    objmesh = mesh.createFromObj( objstr, true, false )
+                    
+                    coroutine.yield()
+                    
+                    if clientcallback then
+                        clientcallback( holograms, objmesh )
+                    end
+                    
+                    coroutine.yield( true )
                 
-                file.createDir( "obj2prop/" )
-                file.write( "obj2prop/"..explosion, propVerts )
+                end)
                 
-            else
+            hook.add( "Think", "LoadMesh_"..objlink, function()
                 
-                file.write( "obj2prop/"..explosion, propVerts )
+                while http.getMaximumRequests() - http.getActiveRequests() >= 1 and cpuAverage() <= cpuMax() * clcpu do
+                    if co() then
+                        hook.remove( "Think", "LoadMesh_"..objlink )
+                        break
+                    end
+                end
                 
-            end
+                end)
             
             end)
         
         end)
-        
-    net.receive( "objHandler_LoadObjMeshes", function()
-        
-        local table_count = net.readUInt( 12 ) --get the amount of holos we need to save
-        local holos = {}
-        
-        for i=1, table_count do
-            local holo = net.readEntity() --save holos based on how many we got sent
-            holos[i] = holo
-        end
-        
-        local objurl = net.readString()
-        local materialurl = net.readString()
-        
-        local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
-        _material:setTextureURL( "$basetexture", materialurl )
-        
-        http.get( objurl, function( body ) --load obj data and start code in cb func
-            
-            local mesh_tbl = mesh.createFromObj( body ) --make meshes from obj data
-            local keys = table.getKeys( mesh_tbl ) --turn strings to numbers (essentially)
-            
-            for i,v in pairs( mesh_tbl ) do --go over each mesh
-                
-                local key = table.keyFromValue( keys, i )
-                
-                holos[key]:toHologram():setMesh( v ) --apply mesh to hologram
-                holos[key]:toHologram():setMeshMaterial( _material ) --apply material to hologram
-                
-            end
-            
-            end, function(reason) print(reason.."\n\nfail") end)
-        
-        end)
+end
     
-    local received = false
-    net.receive( "CustomPropMeshMaterial", function()
-        
-        if not received then
-        
-            local _prop = net.readEntity()
-            local meshurl = net.readString()
-            local maturl = net.readString()
-            
-            local _material = material.create( "VertexLitGeneric" ) --create, load, and set up material
-            _material:setTextureURL( "$basetexture", maturl )
-            
-            http.get( meshurl, function( body )
-                
-                local mesh_tbl = mesh.createFromObj( body )
-                
-                for _,v in pairs( mesh_tbl ) do
-                    
-                    _prop:setMesh( v )
-                    _prop:setMeshMaterial( _material )
-                    
-                end
-                
-                received = true
-                
-                end)
-            
-        end
-        
-        end)
 end

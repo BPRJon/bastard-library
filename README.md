@@ -1,84 +1,39 @@
 # bastard-library
 A collection of StarFall Libraries ive made to make my (and possibly your) life easier
 
-# OBJ Handler
+# OBJ Handler V2
 
-## //// SERVER ////
+very much imrpoved mesh loading
 
+////// SHARED //////
 
-## objHandler.createPropFromFile( pos, ang, path, frozen )
+## convertHolosToMeshes( holotbl, objlink, clientcallback, maxcpu or nil )
 
-loads a sf custom prop from an obj file in your sf_filedata folder
+A shared function doesnt make much sense so let me quickly explain before telling you what each var is/does.
+You will have to run this function twice, once on the server and once on the client, and the vars for both are slightly different.
+    
+It should look something like this:
 
+```
+if SERVER then
+    convertHolosToMeshes( holotbl, objlink )
+else
+    convertHolosToMeshes( nil, objlink, clientcallback, maxcpu or nil )
+end
+```
 
-- pos (vector)
-    - vector position the prop should spawn from
- - ang (angle)
-    - angle the prop should face when spawned
-- path (string)
-    - string path to the obj file local to your sf_filedata folder
-- frozen (bool)
-    - whether or not the prop is frozen upon spawn
+### VARS
 
-
-
-## objHandler.cachePropVerticies( path )
-
-saves the vertecies needed for creating a custom prop in your sf_filedata/obj2prop/ folder for easier future use
-deserialize and enjoy
-
-
-- path (string)
-    - path to the obj file you want to cache relative to sf_filedata/
-
-
-
-## objHandler.URLLoadObjAndMaterial( objurl, materialurl, callback )
-
-takes mesh and material urls and automatically creates holograms for each obj object and appies the mesh and material
-
-- objurl (string)
-    - string url for loading the OBJ to be used as the visual mesh
-- materialurl (string)
-    - string url for loading the custom texture that will be applied to the mesh
-- callback (function)
-    - has one argument, tbl, that will give back the table of holograms. to get the table as a var put function(tbl) var = tbl end
-
-
-
-## objHandler.propFromURL( pos, ang, url, freeze, callback )
-
-load an obj from a url and automatically turn it into a custom prop
-
-- pos (vector)
-    - position you want the prop to spawn at
-- ang (angle)
-    - angle you want the prop to face upon spawn
-- url (string)
-    - url to the OBJ to want to load
-- freeze (bool)
-    - whether or not the prop is frozen upon spawn
-- callback (function)
-    has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
-
-## function objHandler.URLLoadPropMeshMaterial( pos, ang, freeze, propurl, meshurl, maturl, callback )
-
-loads a custom prop and sets it mesh and mesh material to custom ones
-
-- pos (vector)
-    - position you want the prop to spawn at
-- ang (angle)
-    - angle you want the prop to face upon spawn
-- freeze (bool)
-    - whether or not the prop is frozen upon spawn
-- propurl (string)
-    - string url to the custom prop obj
-- meshurl (string)
-    - string url to the mesh obj
-- maturl (string)
-    - string url to the material file
-- callback (function)
-    - has one argument, ent, that will give back the custom prop. to get the prop as a var put function(ent) var = ent end
+ - holotbl [SERVER] (table)
+     - A table of hologram entities you want to turn into meshes
+ - objlink [SHARED] (string)
+     - A link to the obj file you want to turn into a mesh, must be pre-triangulated
+ - clientcallback [CLIENT] (function)
+     - A function that will automatically be run. This function has 2 inputs: holograms (table) and obj (table).
+         - holograms is the holotbl sent to the client automatically by the function
+         - obj is a table of Mesh objects created from your OBJ file
+ - maxcpu [CLIENT] (number)
+     - a number 0-1 representing how much of the client CPU the function can take to generate the mesh (default 0.25)
 
 # Behavior Tree
 
