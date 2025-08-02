@@ -4,7 +4,7 @@ DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS /// DOCS ///
 
 # OBJ Handler V2
 
-
+very much imrpoved mesh loading
 
 ////// SHARED //////
 
@@ -43,58 +43,62 @@ objHandler = {}
 
 function convertHolosToMeshes( holotbl, objlink, clientcallback, maxcpu )
     
-if SERVER then
-    hook.add( "ClientInitialized", "LoadOBJ_"..objlink, function()
-        
-        net.start( "NetHolos_"..objlink )
-            net.writeTable( holotbl )
-            net.send()
-        
-        end)
-elseif CLIENT then
-    local receivedNet = false
-    local objmesh = {}
-    local co = function()end
-    local clcpu = 0.25
-    
-    if maxcpu then clcpu = maxcpu end
-    
-    net.receive( "NetHolos_"..objlink, function()
-        
-        receivedNet = true
-        
-        local holograms = net.readTable()
-        
-        http.get( objlink, function(objstr)
+    if SERVER then
+        hook.add( "ClientInitialized", "LoadOBJ_"..objlink, function()
             
-            co = coroutine.wrap(function()
-                    
-                    objmesh = mesh.createFromObj( objstr, true, false )
-                    
-                    coroutine.yield()
-                    
-                    if clientcallback then
-                        clientcallback( holograms, objmesh )
-                    end
-                    
-                    coroutine.yield( true )
-                
-                end)
-                
-            hook.add( "Think", "LoadMesh_"..objlink, function()
-                
-                while http.getMaximumRequests() - http.getActiveRequests() >= 1 and cpuAverage() <= cpuMax() * clcpu do
-                    if co() then
-                        hook.remove( "Think", "LoadMesh_"..objlink )
-                        break
-                    end
-                end
-                
-                end)
+            net.start( "NetHolos_"..objlink )
+                net.writeTable( holotbl )
+                net.send()
             
             end)
+    elseif CLIENT then
+        local receivedNet = false
+        local objmesh = {}
+        local co = function()end
+        local clcpu = 0.25
         
-        end)
-end
+        if maxcpu then clcpu = maxcpu end
+        
+        net.receive( "NetHolos_"..objlink, function()
+            
+            if not receivedNet then
+            
+            receivedNet = true
+            
+            local holograms = net.readTable()
+            
+            http.get( objlink, function(objstr)
+                
+                co = coroutine.wrap(function()
+                        
+                        objmesh = mesh.createFromObj( objstr, true, false )
+                        
+                        coroutine.yield()
+                        
+                        if clientcallback then
+                            clientcallback( holograms, objmesh )
+                        end
+                        
+                        coroutine.yield( true )
+                    
+                    end)
+                    
+                hook.add( "Think", "LoadMesh_"..objlink, function()
+                    
+                    while http.getMaximumRequests() - http.getActiveRequests() >= 1 and cpuAverage() <= cpuMax() * clcpu do
+                        if co() then
+                            hook.remove( "Think", "LoadMesh_"..objlink )
+                            break
+                        end
+                    end
+                    
+                    end)
+                
+                end)
+                
+            end
+            
+            end)
+    end
     
 end
