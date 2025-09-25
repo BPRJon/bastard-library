@@ -228,3 +228,37 @@ Branches and Leaves have :check() and :tick() functions but you technically shou
 node:check() will run the check function of the node, and will just likely set it's node status if you've correctly set up its check functions
     
 node:tick() will run the node's children in the case of a branch, and the callback in the case of the leaf. this is a way to bypass checking down the tree if say you need someone to do something instantly and skip the tree temporarily
+
+# Hologram Handler V1
+
+////// SERVER //////
+
+## holoHandler.createHolograms( BaseEntity, tblHoloData, callbackCompleted or nil, createSound or nil )
+
+Create holograms based on the data from tblHoloData. Table must be formated like {Position vec,Angle ang,Model str,Scale vec,Parent str or nil, Clips tbl or nil, Index str or nil}
+
+### VARS
+
+ - BaseEntity (entity)
+     - The root entity for the entire model
+ - tblHoloData (table)
+     - Table of hologram data for creation
+ - callbackCompleted (function)
+     - Function that will be run when completed with holo creation. Has one input of tblHolograms which holds the holo entities
+ - createSound (string)
+     - Sound to be played when a hologram is created
+    
+## holoHandler.jumbleHolograms( BaseEntity, tblHolograms, tblHoloData, jumbleSound )
+
+Jumble holograms and recreates them in order to fix source rot.
+
+### VARS
+
+ - BaseEntity (entity)
+     - The root entity for the entire model
+ - tblHolograms (table)
+     - Table of hologram entities to be jumbled
+ - tblHoloData (table)
+     - Table of hologram data for recreation
+ - jumbleSound (string)
+     - Sound to be played when a hologram is jumbled
