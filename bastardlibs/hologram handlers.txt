@@ -1,0 +1,129 @@
+--@author jon b
+
+--[[
+
+# Hologram Handler V1
+
+////// SERVER //////
+
+## holoHandler.createHolograms( BaseEntity, tblHoloData, callbackCompleted or nil, createSound or nil )
+
+Create holograms based on the data from tblHoloData. Table must be formated like {Position vec,Angle ang,Model str,Scale vec,Parent str or nil, Clips tbl or nil, Index str or nil}
+
+### VARS
+
+ - BaseEntity (entity)
+     - The root entity for the entire model
+ - tblHoloData (table)
+     - Table of hologram data for creation
+ - callbackCompleted (function)
+     - Function that will be run when completed with holo creation. Has one input of tblHolograms which holds the holo entities
+ - createSound (string)
+     - Sound to be played when a hologram is created
+    
+## holoHandler.jumbleHolograms( BaseEntity, tblHolograms, tblHoloData, jumbleSound )
+
+Jumble holograms and recreates them in order to fix source rot.
+
+### VARS
+
+ - BaseEntity (entity)
+     - The root entity for the entire model
+ - tblHolograms (table)
+     - Table of hologram entities to be jumbled
+ - tblHoloData (table)
+     - Table of hologram data for recreation
+ - jumbleSound (string)
+     - Sound to be played when a hologram is jumbled
+
+]]
+
+holoHandler = {}
+
+if SERVER then
+    
+function holoHandler.createHolograms( BaseEntity, tblHoloData, callbackCompleted, createSound )
+    
+    local tblHolograms = {}
+    
+    for index, holoData in pairs( tblHoloData ) do
+        
+        local holo = hologram.create( BaseEntity:localToWorld( holoData.Position ), BaseEntity:localToWorldAngles( holoData.Angle ), holoData.Model, holoData.Scale )
+        
+        if holoData.Parent then
+            holo:setParent( tblHolograms[holoData.Parent] )
+            holo:setLocalPos( holoData.Position )
+            holo:setLocalAngles( holoData.Angle )
+        else
+            holo:setParent( BaseEntity )
+        end
+        
+        for i,v in pairs( holoData.Clips ) do
+            holo:setClip(i,true,v.Origin,v.Normal,holo)
+        end
+        
+        if holoData.Color then holo:setColor( holoData.Color ) end
+        if holoData.Material then holo:setMaterial( holoData.Material ) end
+        
+        if holoData.Index ~= "" then
+            tblHolograms[holoData.Index] = holo
+        else
+            tblHolograms[index] = holo
+        end
+        
+        if createSound and sound.canEmitSound() then
+            holo:emitSound( createSound )
+        end
+    end
+    
+    if callbackCompleted then
+        callbackCompleted( tblHolograms )
+    end
+    
+end
+
+function holoHandler.jumbleHolograms( BaseEntity, tblHolograms, tblHoloData, jumbleSound )
+    
+    local pos,ang,clr,mat = Vector(),Angle(),Color(255,255,255,255),"Models/effects/comball_sphere"
+    
+    for index, holo in pairs( tblHolograms ) do
+        
+        holo:setPos(pos) holo:setAngles(ang) holo:setColor(clr) holo:setMaterial(mat) holo:setParent()
+        
+    end
+    
+    for index, holoData in pairs( tblHoloData ) do
+        
+        local holo = tblHolograms[index]
+        if holoData.Index ~= "" then
+            holo = tblHolograms[holoData.Index]
+        end
+        
+        if holoData.Parent then
+            holo:setParent( tblHolograms[holoData.Parent] )
+            holo:setLocalPos( holoData.Position )
+            holo:setLocalAngles( holoData.Angle )
+        else
+            holo:setParent( BaseEntity )
+            holo:setLocalPos( holoData.Position )
+            holo:setLocalAngles( holoData.Angle )
+        end
+        
+        if holoData.Color then holo:setColor( holoData.Color ) end
+        if holoData.Material then holo:setMaterial( holoData.Material ) end
+        
+        if jumbleSound and sound.canEmitSound() then
+            holo:emitSound( jumbleSound )
+        end
+        
+    end
+    
+end
+
+    
+elseif CLIENT then
+    
+    
+    
+    
+end

@@ -75,9 +75,7 @@ function convertHolosToMeshes( holotbl, objlink, clientcallback, maxcpu )
                         
                         coroutine.yield()
                         
-                        if clientcallback then
-                            clientcallback( holograms, objmesh )
-                        end
+                        clientcallback( holograms, objmesh )
                         
                         coroutine.yield( true )
                     
